@@ -157,6 +157,7 @@ class LLMWorker(Worker):
                     lazy_swap=self.lazy_swap,
                     max_parallem_sum=max_parallem_sum,
                     max_occupy_ratio=max_occupy_ratio if self.role != "prompt" else 1,
+                    shared_cache=psla_config.shared_cache,
                 )
         elif batching == "static":
             self.scheduler = LLMStaticScheduler(max_parallem_sum=max_parallem_sum)

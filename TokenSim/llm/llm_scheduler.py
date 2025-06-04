@@ -147,6 +147,7 @@ class LLMPagedAttnScheduler(LLMScheduler):
         lazy_swap: bool,
         max_parallem_sum=None,
         max_occupy_ratio: float = 1,
+        shared_cache: bool = False,
     ):
         super().__init__()
 
@@ -159,6 +160,7 @@ class LLMPagedAttnScheduler(LLMScheduler):
             block_size=self.cache_config.block_size,
             num_gpu_blocks=self.cache_config.num_gpu_blocks,
             num_cpu_blocks=self.cache_config.num_cpu_blocks,
+            shared_cache=shared_cache,
         )
 
         self.max_occupy_ratio = max_occupy_ratio
