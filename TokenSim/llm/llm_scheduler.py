@@ -161,6 +161,7 @@ class LLMPagedAttnScheduler(LLMScheduler):
             num_gpu_blocks=self.cache_config.num_gpu_blocks,
             num_cpu_blocks=self.cache_config.num_cpu_blocks,
             shared_cache=shared_cache,
+            debug=self.cache_config.debug,
         )
 
         self.max_occupy_ratio = max_occupy_ratio

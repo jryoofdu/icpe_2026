@@ -1,0 +1,12 @@
+{
+    "llama-7b": {
+        "Nlayer": 32,
+        "Dmodel": 4096,
+        "Dhead": 128,
+        "Nhead": 32,
+        "Dff": 11008,
+        "vocab_size": 32000,
+        "max_seq_len": 2048,
+        "dtype": "fp16"
+    }
+} 

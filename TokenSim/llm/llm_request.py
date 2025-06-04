@@ -122,6 +122,7 @@ class Request:
     service_time: list[float] = field(default_factory=list, repr=False)
     batch: list[int] = field(default_factory=list, repr=False)
     tqdm_submit_func = None
+    cache_hit: bool = field(default=False, repr=False)
 
     def __post_init__(self):
         self._physical_token_blocks: list[PhysicalTokenBlock] = []
@@ -192,3 +193,7 @@ class Request:
             )
             if self.tqdm_submit_func:
                 self.tqdm_submit_func(1)
+
+    def get_token_sequence(self):
+        # For simulation, use a tuple of (prompt_len, generation_len)
+        return (self.prompt_len, self.generation_len)

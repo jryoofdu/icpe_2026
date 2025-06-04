@@ -54,6 +54,7 @@ class PhysicalTokenBlock:
         self.block_size = block_size
 
         self.ref_count = 0
+        self.tokens = None  # Store the token sequence for cache matching
 
     def __repr__(self) -> str:
         return (

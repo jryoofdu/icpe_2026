@@ -8,9 +8,10 @@ _GB = 1 << 30
 
 
 class CacheConfig:
-    def __init__(self, block_size: int, hardware: str, model: str, roofline: TransformerRoofline):
+    def __init__(self, block_size: int, hardware: str, model: str, roofline: TransformerRoofline, debug: bool = False):
         # block size
         self.block_size: int = block_size
+        self.debug: bool = debug
         hardware_conf = roofline.hardwares[hardware]
         model_conf = roofline.models[model]
         self.size_per_token = model_conf.Dmodel * 2 * 2 * model_conf.Nlayer

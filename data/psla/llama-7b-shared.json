@@ -18,6 +18,6 @@
         "p99": 0.05,
         "max": 1
     },
-    "shared_cache": false,
+    "shared_cache": true,
     "debug": false
-}
+} 

@@ -40,6 +40,17 @@ def print_all_stats(
     # 打印吞吐量统计
     print_throughput_stats(duration, prompt_count, prompt_lens)
     print(f"Total preemptions: {sum([wkr.preempted_cnt for wkr in engine.workers])}")
+    
+    # Print cache statistics if shared cache is enabled
+    for worker in engine.workers:
+        if hasattr(worker.scheduler, 'block_manager') and worker.scheduler.block_manager.shared_cache:
+            cache_stats = worker.scheduler.block_manager.get_cache_stats()
+            print("\nCache Statistics:")
+            print(f"Cache Hits: {cache_stats['hits']}")
+            print(f"Cache Misses: {cache_stats['misses']}")
+            print(f"Cache Hit Rate: {cache_stats['hit_rate']:.2f}%")
+            print(f"Total Allocations: {cache_stats['total']}")
+    
     # 打印SLO统计
     print_slo_stats(duration)
 
@@ -133,10 +144,19 @@ def export_result(
     generation_lens: list[int],
     notdone: list[int],
     duration: float,
+    engine: LLMEngine = None,  # Add engine parameter
 ):
     request_time = MetricData.from_list(g_time.request_time)
     prompt_time = MetricData.from_list(g_time.prompt_time)
     decode_time = MetricData.from_list(g_time.decode_time)
+
+    # Get cache statistics if available
+    cache_stats = None
+    if engine:
+        for worker in engine.workers:
+            if hasattr(worker.scheduler, 'block_manager') and worker.scheduler.block_manager.shared_cache:
+                cache_stats = worker.scheduler.block_manager.get_cache_stats()
+                break
 
     result = LLMResult(
         qps=args.qps,
@@ -150,6 +170,7 @@ def export_result(
         output_qps=prompt_count / duration,
         output_token_ps=(sum(prompt_lens) + sum(generation_lens)) / duration,
         notdone=notdone,
+        cache_stats=cache_stats,  # Add cache stats to result
     )
 
     if args.results_path == "":

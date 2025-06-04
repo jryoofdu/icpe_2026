@@ -34,6 +34,7 @@ class LLMResult:
     output_qps: float
     output_token_ps: float
     notdone: list[int]
+    cache_stats: dict | None = None
 
     @classmethod
     def from_file(cls, filename):
@@ -53,6 +54,7 @@ class PSLAConfig:
     first_token_latency: MetricData
     decode_token_latency: MetricData
     qps: float
+    shared_cache: bool = False
 
     @classmethod
     def from_file(cls, filename):
