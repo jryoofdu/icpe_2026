@@ -50,6 +50,8 @@ def print_all_stats(
             print(f"Cache Misses: {cache_stats['misses']}")
             print(f"Cache Hit Rate: {cache_stats['hit_rate']:.2f}%")
             print(f"Total Allocations: {cache_stats['total']}")
+            if 'evictions' in cache_stats:
+                print(f"Cache Evictions: {cache_stats['evictions']}")
     
     # 打印SLO统计
     print_slo_stats(duration)
