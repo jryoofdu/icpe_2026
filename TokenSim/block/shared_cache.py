@@ -30,43 +30,44 @@ class CacheStats:
         return self.misses / self.total_accesses
 
 class SharedMemoryCache:
-    """Implements a shared memory cache with LRU eviction policy"""
+    """Implements a shared memory cache with LRU eviction policy for token sequences"""
     def __init__(self, capacity: int):
         self.capacity = capacity
-        self.cache: Dict[int, List[int]] = {}  # block_id -> [token_ids]
-        self.lru: List[int] = []  # Tracks LRU order of blocks
+        self.cache: Dict[Tuple, List[int]] = {}  # token_sequence -> [block_ids]
+        self.lru: List[Tuple] = []  # Tracks LRU order of token sequences
         self.stats = CacheStats()
         
-    def get(self, block_id: int) -> Optional[List[int]]:
-        """Get block from cache, updating LRU order"""
-        if block_id in self.cache:
+    def get(self, token_sequence: Tuple) -> Optional[List[int]]:
+        """Get token sequence from cache, updating LRU order"""
+        if token_sequence in self.cache:
             self.stats.hits += 1
-            self._update_lru(block_id)
-            return self.cache[block_id]
+            self._update_lru(token_sequence)
+            return self.cache[token_sequence]
         self.stats.misses += 1
         return None
         
-    def put(self, block_id: int, tokens: List[int]) -> Optional[int]:
-        """Add block to cache, evicting LRU if needed"""
-        if block_id in self.cache:
-            self._update_lru(block_id)
-            self.cache[block_id] = tokens
+    def put(self, token_sequence: Tuple, block_ids: List[int]) -> Optional[Tuple]:
+        """Add token sequence to cache, evicting LRU if needed"""
+        if token_sequence in self.cache:
+            self._update_lru(token_sequence)
+            self.cache[token_sequence] = block_ids
             return None
             
-        evicted_block = None
+        evicted_sequence = None
         if len(self.cache) >= self.capacity:
-            evicted_block = self.lru.pop(0)
-            del self.cache[evicted_block]
+            evicted_sequence = self.lru.pop(0)
+            del self.cache[evicted_sequence]
             self.stats.evictions += 1
             
-        self.cache[block_id] = tokens
-        self.lru.append(block_id)
-        return evicted_block
+        self.cache[token_sequence] = block_ids
+        self.lru.append(token_sequence)
+        return evicted_sequence
         
-    def _update_lru(self, block_id: int):
-        """Update LRU order for accessed block"""
-        self.lru.remove(block_id)
-        self.lru.append(block_id)
+    def _update_lru(self, token_sequence: Tuple):
+        """Update LRU order for accessed token sequence"""
+        if token_sequence in self.lru:
+            self.lru.remove(token_sequence)
+        self.lru.append(token_sequence)
         
     def clear(self):
         """Clear cache contents and reset stats"""
@@ -76,4 +77,4 @@ class SharedMemoryCache:
         
     def get_stats(self) -> CacheStats:
         """Get current cache statistics"""
-        return self.stats 
+        return self.stats
