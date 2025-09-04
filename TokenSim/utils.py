@@ -57,7 +57,7 @@ def get_lens_from_file(dataset_path, prompt_count=None):
         data = json.load(f)
     if prompt_count is not None and prompt_count > len(data):
         data = data * (prompt_count // len(data) + 1)
-    data = data[6789:]
+    #data = data[6789:]
     data = data[:prompt_count]
     prompt_lens = [x[0] - 2 if x[0] > 2 else 1 for x in data]
     gen_lens = [x[1] for x in data]

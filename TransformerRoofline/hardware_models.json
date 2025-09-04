@@ -113,7 +113,7 @@
             "Type": "Homo",
             "TFLOPS": 312,
             "BW_TBs": 0.7,
-            "Capacity": 40,
+            "Capacity": 80,
             "Card_Num": 1,
             "Static_Power": 60,
             "TDP": 400,
@@ -121,6 +121,19 @@
             "pcie": "pcie4.0x16",
             "nvlink": "nvlinkx12_real"
         },
+        {
+            "Name": "A100-100G",
+            "Type": "Homo",
+            "TFLOPS": 312,
+            "BW_TBs": 0.7,
+            "Capacity": 163840,
+            "Card_Num": 1,
+            "Static_Power": 60,
+            "TDP": 400,
+            "Price": 100000,
+            "pcie": "pcie4.0x16",
+            "nvlink": "nvlinkx12_real"
+        },	
         {
             "Name": "A100-40G-TP8",
             "Type": "Homo",
@@ -568,6 +581,52 @@
             "Nlayer": 32,
             "Max_Token": 4096
         }
+        ,{
+  "Name": "Mistral-7B",
+  "Dmodel": 4096,
+  "Nlayer": 32,
+  "Max_Token": 32768,
+  "Nhead": 32,
+  "FFN_Hidden": 11008,
+  "Wnum_in_MLP": 3
+}
+,{
+  "Name": "InternLM2-7B",
+  "Dmodel": 4096,
+  "Nlayer": 32,
+  "Max_Token": 32768,
+  "Nhead": 32,
+  "FFN_Hidden": 11008,
+  "Wnum_in_MLP": 3
+}
+,{
+  "Name": "mistral-7b",
+  "Dmodel": 4096,
+  "Nlayer": 32,
+  "Max_Token": 32768,
+  "Nhead": 32,
+  "FFN_Hidden": 11008,
+  "Wnum_in_MLP": 3
+}
+,{
+  "Name": "llama-2-7b",
+  "Nhead": 32,
+  "Dmodel": 4096,
+  "Nlayer": 32,
+  "Max_Token": 4096,
+  "FFN_Hidden": 11008,
+  "Wnum_in_MLP": 3
+}
+,{
+  "Name": "internlm2-7b",
+  "Nhead": 32,
+  "Dmodel": 4096,
+  "Nlayer": 32,
+  "Max_Token": 32768,
+  "FFN_Hidden": 11008,
+  "Wnum_in_MLP": 3
+}
+
     ],
     "sparse": [
         {

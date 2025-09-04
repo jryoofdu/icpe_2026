@@ -1,0 +1,39 @@
+{
+  "model_name": "llama2-7b",
+  "num_layers": 32,
+  "d_model": 4096,
+  "num_heads": 32,
+  "dtype_bytes": 4,
+  "device_memory_bytes": 4294967296,
+  "device": {
+    "name": "4-core-4GB-CPU",
+    "memory": 4294967296,
+    "bandwidth": 25,
+    "latency": 0.5,
+    "compute_chiplet": {
+      "core": {
+        "num_cores": 4,
+        "flops_per_core": 1000000000,
+        "clock_frequency": 2.5,
+        "sublane_count": 2,
+        "vector_unit": {
+          "vector_width": 256,
+          "frequency": 2.5,
+          "flop_per_cycle": 4,
+          "data_type": "float32"
+        },
+        "systolic_array": {
+          "array_height": 16,
+          "array_width": 16,
+          "frequency": 1.5,
+          "mac_per_cycle": 256
+        }
+      }
+    },
+    "io": {
+      "bandwidth": 2,
+      "latency": 5
+    }
+  }
+}
+

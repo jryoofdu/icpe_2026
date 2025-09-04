@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+import json, argparse
+from datasets import load_dataset
+from transformers import AutoTokenizer
+from TokenSim.utils import get_generation_lens
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--model",   default="internlm/internlm2-7b")
+    p.add_argument("--dataset", required=True)
+    p.add_argument("--split",   default="train")
+    p.add_argument("--field",   required=True)
+    p.add_argument("--out",     default="pairs.json")
+    p.add_argument("--dist",    default="uniform")
+    p.add_argument("--mean",    type=int, default=100)
+    p.add_argument("--rng",     type=int, default=50)
+    args = p.parse_args()
+
+    print(f"\n>> Loading {args.dataset} split={args.split}…")
+    contexts = load_dataset(args.dataset, split=args.split)[args.field]
+    print(f"✅ Loaded {len(contexts)} items\n")
+
+    print(f">> Loading tokenizer for {args.model}…")
+    tok = AutoTokenizer.from_pretrained(
+      args.model,
+      use_fast=True,
+      trust_remote_code=("internlm" in args.model)
+    )
+    print("✅ Tokenizer loaded\n")
+
+    print(">> Tokenizing contexts:")
+    prompt_lens = []
+    for i, c in enumerate(contexts):
+        prompt_lens.append(len(tok.encode(c, add_special_tokens=False)))
+        if (i + 1) % 50 == 0 or i == len(contexts)-1:
+            print(f"   • {i+1}/{len(contexts)}")
+    print("✅ Tokenization complete\n")
+
+    print(f">> Generating {args.dist} gen lengths (mean={args.mean}, range={args.rng})…")
+    gen_lens = get_generation_lens(
+        distribution=args.dist,
+        len_mean=args.mean,
+        len_range=args.rng,
+        num_prompt=len(prompt_lens),
+    )
+    print("✅ Generation lengths sampled\n")
+
+    pairs = [[p, g] for p, g in zip(prompt_lens, gen_lens)]
+    with open(args.out, "w") as f:
+        json.dump(pairs, f, indent=2)
+    print(f"✅ Wrote {len(pairs)} pairs → {args.out}\n")
+
+if __name__ == "__main__":
+    main()
+

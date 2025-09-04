@@ -9,7 +9,7 @@ import simpy
 
 
 from TokenSim.llm.llm_comm import SwapMetadata, SwapInMetadata
-from TokenSim.llm.llm_request import Request
+from TokenSim.llm.llm_request import Request, RequestStatus
 from TokenSim.config.config import ClusterConfig, WorkerConfig, CacheConfig, _GB
 from TokenSim.config.psla_config import PSLAConfig
 from TokenSim.llm.llm_scheduler import (
@@ -115,11 +115,13 @@ class LLMWorker(Worker):
         swap_policy: SwapPolicy,
         roofline: TransformerRoofline,
         max_parallem_sum: int,
+        eviction_policy: str,
         max_occupy_ratio: float = 1,
         pp_dim: int = 1,
         wrapped_llmcompass_vars: Tuple[
             LLMCompassSystem, TransformerBlockInitComputationTP, TransformerBlockAutoRegressionTP
         ] = None,
+       
     ):
         super().__init__(env, id)
         self.llmcm_system, self.llmcm_prefill, self.llmcm_decode = None, None, None
@@ -127,6 +129,8 @@ class LLMWorker(Worker):
             self.llmcm_system, self.llmcm_prefill, self.llmcm_decode = wrapped_llmcompass_vars
         self.roofline = roofline
         self.engine = engine
+
+        self.psla_config = psla_config
 
         self.role = worker_config.role
         self.hardware = worker_config.hardware
@@ -136,8 +140,8 @@ class LLMWorker(Worker):
 
         self.block_size = block_size
         self.swap_policy = swap_policy
-
-        self.cache_config = CacheConfig(self.block_size, self.hardware, self.model, self.roofline)
+        self.eviction_policy = eviction_policy
+        self.cache_config = CacheConfig(self.block_size, self.hardware, self.model, self.roofline,debug=False)
 
         self.preempted_cnt = 0
 
@@ -151,20 +155,27 @@ class LLMWorker(Worker):
                 # if self.role == "prompt":
                 self.scheduler = LLMPromptScheduler(max_parallem_sum=200)
             else:
+                print(f"Worker {self.id} using paged attention scheduler")
                 self.scheduler = LLMPagedAttnScheduler(
+                    self.env,    
                     self.id,
                     cache_config=self.cache_config,
                     lazy_swap=self.lazy_swap,
+                    psla_config=psla_config,
                     max_parallem_sum=max_parallem_sum,
                     max_occupy_ratio=max_occupy_ratio if self.role != "prompt" else 1,
                     shared_cache=psla_config.shared_cache,
+                    #swap_policy=swap_policy,
+                    eviction_policy=eviction_policy,
                 )
+                
         elif batching == "static":
             self.scheduler = LLMStaticScheduler(max_parallem_sum=max_parallem_sum)
         else:
             self.scheduler = LLMDynamicScheduler(max_parallem_sum=max_parallem_sum)
 
         self.status = WorkerStatus.WAITING
+        self.eviction_policy = eviction_policy
         self.action = self.env.process(self.run())
 
     @property
@@ -190,6 +201,7 @@ class LLMWorker(Worker):
         links = self.roofline.links
 
         if self.id == swap_metadata.remote_id:
+            #print(self.hardware, self.network, self.nettype, hardwares[self.hardware])
             link = links[hardwares[self.hardware].Pcie]
             Latency = link.Latency
             BW = link.UniBW
@@ -251,15 +263,51 @@ class LLMWorker(Worker):
                                 yield self.env.timeout(latency)
 
                         if running:
+                            #latency = self.dynamic_batch(running)
+                            #yield self.env.timeout(latency)
+
+                            #self.step(running, latency)
+
+                            # ─── cache‐access timing ─────────────────────────────
+                            #for req in running:
+                            #    req.mark_start("cache_access", self.env.now)
+                            # charge the p50 cost (or swap in p99/max as you wish)
+                            #yield self.env.timeout(.001)
+                            #for req in running:
+                            #    req.mark_end  ("cache_access", self.env.now)
+                            # now actually allocate into GPU
+                            #for req in running:
+                            #    self.scheduler.block_manager.allocate(req)
+                            #    req.status = RequestStatus.RUNNING
+                            # ──────────────────────────────
+
+                            # ─── inference timing ───────────────────────
+                            for req in running:
+                                req.mark_start("inference")
+
                             latency = self.dynamic_batch(running)
                             yield self.env.timeout(latency)
+                            
+                            for req in running:
+                                req.mark_end("inference")
+                            # ────────────────────────────────────────────
 
+                            # ─── postprocessing timing ─────────────────
+                            for req in running:
+                                req.mark_start("postprocessing")
+
+                            # only the actual “post‐decode” work
                             self.step(running, latency)
+
+                            for req in running:
+                                req.mark_end("postprocessing")
+                            # ────────────────────────────────────────────
 
                             running = self.scheduler.update(running)
                             self.trace_memory()
 
                             self.engine.trace_all_memory_usage()
+
                             if running and self.role == "prompt":
                                 swapped, swap_metadata = self.scheduler.schedule_prompt()
                                 if swapped and swap_metadata:
@@ -493,11 +541,13 @@ class LLMEngine(Worker):
         pworker_pool_type: str,
         gworker_pool_type: str,
         max_parallem_sum: int,
+        eviction_policy: str,
         max_occupy_ratio: float = 1,
         pp_dim: int = 1,
         wrapped_llmcompass_vars: Tuple[
             LLMCompassSystem, TransformerBlockInitComputationTP, TransformerBlockAutoRegressionTP
         ] = None,
+        
     ):
         super().__init__(env, -1)
 
@@ -518,9 +568,11 @@ class LLMEngine(Worker):
                 swap_policy,
                 roofline,
                 max_parallem_sum,
+                eviction_policy,
                 max_occupy_ratio,
                 pp_dim,
                 wrapped_llmcompass_vars,
+              
             )
             for id, worker_config in enumerate(cluster_config.workers())
         ]
@@ -533,8 +585,9 @@ class LLMEngine(Worker):
                 for worker in self.workers
                 if worker.role == "homo" or worker.role == "generation"
             ]
+            
         )
-
+        
         self.memory_usage_trace = []
 
         self.action = self.env.process(self.run())
@@ -568,9 +621,11 @@ class LLMEngine(Worker):
     def run(self):
         while True:
             msg = yield self.msg_queue.get()
+             
             match msg.task:
                 case Task.ADD:
                     worker = self.pworkers.schedule()
+                    
                     self.send_task(worker, Task.ADD, msg.requests)
                     self.trace_all_memory_usage()
                 # 3. 内存交换

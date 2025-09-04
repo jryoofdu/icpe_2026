@@ -7,6 +7,8 @@ from TokenSim.llm.llm_request import Request, RequestStatus
 from TokenSim.block.block_manager import BlockManager
 from TokenSim.config.config import CacheConfig
 
+import simpy
+
 check_req_id = []
 
 
@@ -142,26 +144,34 @@ class LLMPromptScheduler(LLMScheduler):
 class LLMPagedAttnScheduler(LLMScheduler):
     def __init__(
         self,
+        env: simpy.Environment,
         id: int,
         cache_config: CacheConfig,
         lazy_swap: bool,
+        psla_config: PSLAConfig,
         max_parallem_sum=None,
         max_occupy_ratio: float = 1,
         shared_cache: bool = False,
+        eviction_policy: str = "lru",  # "lru" or "lfu"
+        eviction_policy: str = "lru",  # "lru" or "lfu"
     ):
         super().__init__()
-
+        self.env = env
         self.id = id
         self.cache_config = cache_config
         self.lazy_swap = lazy_swap
         self.max_parallem_sum = max_parallem_sum
+        self.psla = psla_config
 
         self.block_manager: BlockManager = BlockManager(
             block_size=self.cache_config.block_size,
             num_gpu_blocks=self.cache_config.num_gpu_blocks,
             num_cpu_blocks=self.cache_config.num_cpu_blocks,
             shared_cache=shared_cache,
+            eviction_policy=eviction_policy,
+            eviction_policy=eviction_policy,
             debug=self.cache_config.debug,
+            env=env,                # ← pass it here
         )
 
         self.max_occupy_ratio = max_occupy_ratio
@@ -176,25 +186,84 @@ class LLMPagedAttnScheduler(LLMScheduler):
         Return:
             A list of candidate requests for the next generation step.
         """
+        
+        
         num_blocks_to_swap_in: int = 0
         num_blocks_to_swap_out: int = 0
 
         scheduled: list[Request] = []
+         
+         
         if not self.swapped:
+          
+          
             while self.waiting:
+              
+              
                 if not self._is_occupy_below_usage():
+                    print("cant allocate waiting")
+                    print("cant allocate waiting")
                     break
                 if self.max_parallem_sum is not None and len(self.running) >= self.max_parallem_sum:
+                    print("max parallel sum reached")
+                    print("max parallel sum reached")
                     break
 
                 req = self.waiting[0]
-
+                #print(f"Scheduling request {req.id} (Prompt={req.prompt_len}, Gen={req.generation_len}, BlockSize={req.block_size})")
+                #print(f"Scheduling request {req.id} (Prompt={req.prompt_len}, Gen={req.generation_len}, BlockSize={req.block_size})")
                 if not self.block_manager.can_allocate(req):
-                    # print("cant allocate waiting")
+                    required_blocks = req.num_logical_token_blocks
+                    free_blocks, used_blocks, total_blocks = self.block_manager.get_gpu_status()
+                    #print(
+                       # f"[⚠️ Skipped] Request {req.id} needs {required_blocks} blocks "
+                      #  f"but only {free_blocks} are free "
+                       # f"(Prompt={req.prompt_len}, Gen={req.generation_len}, BlockSize={req.block_size})"
+                    #)
+                    #print("cant allocate waiting")
+                    required_blocks = req.num_logical_token_blocks
+                    free_blocks, used_blocks, total_blocks = self.block_manager.get_gpu_status()
+                    #print(
+                       # f"[⚠️ Skipped] Request {req.id} needs {required_blocks} blocks "
+                      #  f"but only {free_blocks} are free "
+                       # f"(Prompt={req.prompt_len}, Gen={req.generation_len}, BlockSize={req.block_size})"
+                    #)
+                    #print("cant allocate waiting")
                     break
 
                 req = self.waiting.pop(0)
-                self.block_manager.allocate(req)
+                #print(f"Allocating request {req.id} (Prompt={req.prompt_len}, Gen={req.generation_len}, BlockSize={req.block_size})")
+                #req.mark_start("cache_access", self.env.now)
+                #lat = self.psla.cache_access_latency
+                #yield self.env.timeout(0.001)
+                #req.mark_end(  "cache_access", self.env.now)
+
+                                        
+                # ─── cache timing ───────────────────────
+                #for req in running:
+                #    req.mark_start("cache_access")
+                #req.mark_start("cache_access", self.env.now)
+                # yield self.env.timeout(.001)
+                #req.mark_end("cache_access", self.env.now)
+                #for req in running:
+                #    req.mark_end("cache_access")
+                # ────────────────────────────────────────────
+                
+                # ─── CACHE‐ACCESS TIMING ────────────────────────────────
+                import time
+                start = time.perf_counter()
+
+
+                self.block_manager.allocate(req) # Original code
+
+                elapsed = time.perf_counter() - start
+                # record into the request’s per‐stage histogram
+                req.stage_lat.setdefault("cache_access", 0.0)
+                req.stage_lat["cache_access"] += elapsed
+                # ────────────────────────────────────────────────────────
+
+                #self.block_manager.allocate(req)
+
                 req.status = RequestStatus.RUNNING
                 self.running.append(req)
                 scheduled.append(req)
@@ -239,7 +308,8 @@ class LLMPagedAttnScheduler(LLMScheduler):
         self.running = running
 
         if num_blocks_to_swap_out > 500:
-            print("wtf")
+            print(f"Warning: too many blocks to swap out ({num_blocks_to_swap_out})") 
+            
             pass
         if self.lazy_swap:
             self.block_manager.try_allocate(num_blocks_to_swap_out)

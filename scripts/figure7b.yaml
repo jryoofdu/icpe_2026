@@ -1,0 +1,31 @@
+ experiment_name: dataset_sweep_qps
+
+ qps_values: [2, 4, 6, 8, 10]
+
+ dataset:
+  - name: llama-7b
+    psla: data/psla/llama-7b-shared.json
+    dataset_json_path: dataset/wikipedia_structured/converted/llama-2-7b.json
+  - name: llama-7b
+    psla: data/psla/llama-7b-shared.json
+    dataset_json_path: dataset/needle_in_a_haystack/converted/llama-2-7b.json
+  - name: llama-7b
+    psla: data/psla/llama-7b-shared.json
+    dataset_json_path: dataset/sharegpt/converted/llama-2-7b.json
+  - name: llama-7b
+    psla: data/psla/llama-7b-shared.json
+    dataset_json_path: dataset/longbench/converted/llama-2-7b.json
+  - name: llama-7b
+    psla: data/psla/llama-7b-shared.json
+    dataset_json_path: dataset/bookcorpus/converted/llama-2-7b.json
+
+ base_args:
+  batching: paged-attn
+  block_size: 64
+  swap_policy: eager
+  prompt_count: 50
+  prompt_lens_mean: 100
+  generation_lens_mean: 14
+  cluster: ./data/clusters/8_a100/h8.json
+  eviction_policy: lru
+  results_path: ./results

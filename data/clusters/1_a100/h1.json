@@ -6,9 +6,10 @@
     "worker_groups": [
         {
             "role": "homo",
-            "hardware": "A100-40G",
+            "hardware": "A100-100G",
             "num_workers": 1,
-            "network": "netw1"
+            "network": "netw1",
+            "shared_cache": true
         }
     ]
 }

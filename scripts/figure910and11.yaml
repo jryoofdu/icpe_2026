@@ -1,0 +1,20 @@
+token_per_session_list: [512, 1024, 2048, 4096, 8192, 16384]
+prompt_count: 100
+batching: paged-attn
+block_size: 16
+swap_policy: eager
+qps: 2
+eviction_policy: lru
+
+models:
+  - name: llama-7b
+    psla: data/psla/llama-7b-shared.json
+    cluster: data/clusters/8_a100/h8.json
+
+  - name: mistral-7b
+    psla: data/psla/mistral-7b-shared.json
+    cluster: data/clusters/8_a100/h8.json
+
+  - name: internlm2-7b
+    psla: data/psla/internlm2-7b-shared.json
+    cluster: data/clusters/8_a100/h8.json
