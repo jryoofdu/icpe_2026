@@ -1,0 +1,170 @@
+# TokenSim/block/shared_cache.py
+
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
+import logging
+import time
+import numpy as np
+from TokenSim.block.block import PhysicalTokenBlock
+from TokenSim.llm.llm_request import Request
+
+logger = logging.getLogger(__name__)
+
+@dataclass
+class CacheStats:
+    """Statistics for cache performance monitoring, plus per-access timings."""
+    hits: int = 0
+    misses: int = 0
+    evictions: int = 0
+    times: List[float] = None   # will hold per-access durations in seconds
+
+    def __post_init__(self):
+        if self.times is None:
+            self.times = []
+
+    @property
+    def total_accesses(self) -> int:
+        return self.hits + self.misses
+
+    @property
+    def hit_rate(self) -> float:
+        if self.total_accesses == 0:
+            return 0.0
+        return self.hits / self.total_accesses
+
+    @property
+    def miss_rate(self) -> float:
+        if self.total_accesses == 0:
+            return 0.0
+        return self.misses / self.total_accesses
+
+    def quantiles(self) -> Dict[str, float]:
+        """Return p50, p99, and max of recorded times (ms)."""
+        arr = np.array(self.times) * 1000.0
+        if arr.size == 0:
+            return {"p50": 0.0, "p99": 0.0, "max": 0.0}
+        p50, p99 = np.percentile(arr, [50, 99])
+        return {"p50": float(p50), "p99": float(p99), "max": float(arr.max())}
+
+
+class SharedMemoryCache:
+    """LRU shared-memory cache for token sequences, with timing instrumentation."""
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self.cache: Dict[Tuple, List[int]] = {}  # token_sequence -> [block_ids]
+        self.lru: List[Tuple] = []               # Tracks LRU order
+        self.stats = CacheStats()
+
+    def get(self, token_sequence: Tuple) -> Optional[List[int]]:
+        """Get token sequence from cache, updating LRU order, and record time."""
+        t0 = time.perf_counter()
+
+        if token_sequence in self.cache:
+            self.stats.hits += 1
+            self._update_lru(token_sequence)
+            result = self.cache[token_sequence]
+        else:
+            self.stats.misses += 1
+            result = None
+
+        t1 = time.perf_counter()
+        self.stats.times.append(t1 - t0)
+        return result
+
+    def put(self, token_sequence: Tuple, block_ids: List[int]) -> Optional[Tuple]:
+        """Add token sequence to cache (evicting LRU), record time."""
+        t0 = time.perf_counter()
+        evicted_sequence = None
+
+        if token_sequence in self.cache:
+            # update existing entry
+            self._update_lru(token_sequence)
+            self.cache[token_sequence] = block_ids
+        else:
+            # possibly evict
+            if len(self.cache) >= self.capacity:
+                evicted_sequence = self.lru.pop(0)
+                del self.cache[evicted_sequence]
+                self.stats.evictions += 1
+            # insert new
+            self.cache[token_sequence] = block_ids
+            self.lru.append(token_sequence)
+
+        t1 = time.perf_counter()
+        self.stats.times.append(t1 - t0)
+        return evicted_sequence
+
+    def _update_lru(self, token_sequence: Tuple):
+        """Bump this sequence to MRU position."""
+        if token_sequence in self.lru:
+            self.lru.remove(token_sequence)
+        self.lru.append(token_sequence)
+
+    def clear(self):
+        """Clear cache and reset stats."""
+        self.cache.clear()
+        self.lru.clear()
+        self.stats = CacheStats()
+
+    def get_stats(self) -> CacheStats:
+        """Return current cache stats (hits/misses/evictions + times)."""
+        return self.stats
+
+
+class SharedMemoryCacheLFU:
+    """LFU shared-memory cache for blocks, with timing instrumentation."""
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self.cache: Dict[int, List[int]] = {}
+        self.freq: Dict[int, int] = {}
+        self.stats = CacheStats()
+
+    def get(self, block_id: int) -> Optional[List[int]]:
+        t0 = time.perf_counter()
+
+        if block_id in self.cache:
+            self.stats.hits += 1
+            self.freq[block_id] += 1
+            result = self.cache[block_id]
+        else:
+            self.stats.misses += 1
+            result = None
+
+        t1 = time.perf_counter()
+        self.stats.times.append(t1 - t0)
+        return result
+
+    def put(self, block_id: int, tokens: List[int]) -> Optional[int]:
+        t0 = time.perf_counter()
+        evicted_block = None
+
+        if block_id in self.cache:
+            self.cache[block_id] = tokens
+            self.freq[block_id] += 1
+        else:
+            if len(self.cache) >= self.capacity:
+                # evict least frequently used
+                min_freq = min(self.freq.values())
+                for bid, f in self.freq.items():
+                    if f == min_freq:
+                        evicted_block = bid
+                        break
+                del self.cache[evicted_block]
+                del self.freq[evicted_block]
+                self.stats.evictions += 1
+
+            self.cache[block_id] = tokens
+            self.freq[block_id] = 1
+
+        t1 = time.perf_counter()
+        self.stats.times.append(t1 - t0)
+        return evicted_block
+
+    def clear(self):
+        self.cache.clear()
+        self.freq.clear()
+        self.stats = CacheStats()
+
+    def get_stats(self) -> CacheStats:
+        return self.stats
+

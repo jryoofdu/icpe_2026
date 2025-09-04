@@ -32,6 +32,18 @@ class CacheConfig:
             / self.size_per_token
             // self.block_size
         )
+        if self.debug:
+            print("========== CacheConfig Debug ==========")
+            print(f"Block size: {self.block_size}")
+            print(f"Model param size: {self.model_param_size:,} bytes")
+            print(f"Size per token: {self.size_per_token:,} bytes")
+            print(f"Total GPU memory: {hardware_conf.MM_Card_Num * hardware_conf.Capacity * _GB:,} bytes")
+            print(f"Usable GPU memory: {(hardware_conf.MM_Card_Num * hardware_conf.Capacity * _GB - self.model_param_size):,} bytes")
+            print(f"Expected num_gpu_blocks: {self.num_gpu_blocks}")
+            print(f"hardware_conf.Capacity = {hardware_conf.Capacity}")
+            print(f"hardware_conf.MM_Card_Num = {hardware_conf.MM_Card_Num}")
+            print("=======================================")
+
 
 
 @dataclass

@@ -34,6 +34,7 @@ def check_results(
     generation_lens: list[int],
 ):
     notdone = [r.id for r in requests if not r.is_done]
+    
     if notdone:
         failed_path = Path.cwd() / "results"
         failed_path.mkdir(parents=True, exist_ok=True)
@@ -48,6 +49,7 @@ def check_results(
     export_result(
         args=args,
         g_time=g_time,
+        requests=requests,
         psla=psla,
         cluster=cluster,
         prompt_count=prompt_count,
@@ -55,6 +57,8 @@ def check_results(
         generation_lens=generation_lens,
         notdone=notdone,
         duration=duration,
+        engine=engine,
+        requests=requests,  # Pass requests for latency stats
     )
 
 
@@ -80,7 +84,7 @@ def main(args: argparse.Namespace):
 
     prompt_count = len(requests)
     tqdm_manager.set_total(prompt_count)
-
+    print(f"Total requests: {args.swap_policy}")
     engine = LLMEngine(
         env=env,
         block_size=args.block_size,
@@ -92,9 +96,12 @@ def main(args: argparse.Namespace):
         pworker_pool_type=args.pworker_pool_type,
         gworker_pool_type=args.gworker_pool_type,
         max_parallem_sum=args.max_parallem_sum,
+        eviction_policy=args.eviction_policy,
         max_occupy_ratio=args.max_occupy_ratio,
         pp_dim=args.pp_dim,
         wrapped_llmcompass_vars=wrapped_llmcompass_vars,
+        
+        
     )
 
     source = LLMSource(
@@ -113,7 +120,9 @@ def main(args: argparse.Namespace):
         env.run()
 
     duration = env.now
-
+    print(f"Simulation finished at time: {duration:.2f} seconds")
+   
+ 
     check_results(
         args,
         requests,
@@ -168,6 +177,9 @@ if __name__ == "__main__":
     parser.add_argument("--random_seed", type=int, default=0)
 
     parser.add_argument("--llm_compass", type=str, default=None)
+    parser.add_argument("--eviction_policy", type=str, default="lru")
+    parser.add_argument("--tps", type=int, default=None)
+
 
     args = parser.parse_args()
 

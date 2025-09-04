@@ -129,6 +129,14 @@ class Request:
         self._logical_token_blocks: list[LogicalTokenBlock] = []
         self._append_tokens(self.prompt_len)
 
+        # ─── latency breakdown fields ───────────────────────────
+        # these dicts will hold start/end timestamps and latencies
+        self.stage_start: dict[str, float] = {}
+        self.stage_end:   dict[str, float] = {}
+        self.stage_lat:   dict[str, float] = {}
+        # ────────────────────────────────────────────────────────────
+        
+
     @property
     def is_prompt(self) -> bool:
         return self.generation_idx == 0
@@ -176,7 +184,9 @@ class Request:
         return self.time[0]
 
     def arrive(self, env: simpy.Environment):
+        # record arrival in sim-time and stash the env
         self.time.append(env.now)
+        self.env = env
 
     def step(self, env: simpy.Environment, latency: float, batch: int):
         self.generation_idx += 1
@@ -197,3 +207,27 @@ class Request:
     def get_token_sequence(self):
         # For simulation, use a tuple of (prompt_len, generation_len)
         return (self.prompt_len, self.generation_len)
+
+    # ─── instrumentation helpers ────────────────────────────────
+    def mark_start(self, stage: str, now: float = None):
+        """
+        Stamp the start of the named stage.
+        If `now` is provided (e.g. env.now), use it; otherwise use wall-clock time.
+        """
+        if now is None:
+            import time
+            now = time.time()
+        self.stage_start[stage] = now
+
+    def mark_end(self, stage: str, now: float = None):
+        """
+        Stamp the end of the named stage and record latency = end - start.
+        If `now` is provided (e.g. env.now), use it; otherwise use wall-clock time.
+        """
+        if now is None:
+            import time
+            now = time.time()
+        self.stage_end[stage] = now
+        self.stage_lat[stage] = now - self.stage_start[stage]
+    # ─────────────────────────────────────────────────────────────
+    

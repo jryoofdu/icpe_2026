@@ -6,3 +6,13 @@ openpyxl==3.1.2
 tqdm
 pydantic
 black==24.2.0
+PyYAML==6.0.2
+torch==2.1.0
+pandas==2.1.3
+scalesim==2.0.2
+requests==2.32.0
+transformers==4.52.4
+kagglehub==0.3.12
+huggingface_hub==0.33.0
+ijson==3.4.0
+tabulate==0.9.0

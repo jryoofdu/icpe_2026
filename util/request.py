@@ -41,6 +41,7 @@ def get_requests(
     ]
     for req in requests:
         req.tqdm_submit_func = tqdm_submit_func
+    
     return requests, prompt_lens, generation_lens
 
 def LLMSource(
@@ -52,8 +53,16 @@ def LLMSource(
 ):
     for req in requests:
         req.arrive(env)
+        # ─── sim-time preprocessing ────────────────────────────
+        req.mark_start("preprocessing")
         if distribution == "burst":
             engine.add_requests_burst([req])
         else:
             engine.add_requests([req])
+        req.mark_end("preprocessing")
+        # ───────────────────────────────────────────────────────
+
+        # throttle inter-arrival (not part of preprocessing)
+        if distribution != "burst":
             yield env.timeout(get_wait_time(1.0 / qps, distribution))
+

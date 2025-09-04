@@ -1,11 +1,11 @@
 {
     "name": "llama7b",
     "model": "LLaMa-7B",
-    "qps": 1000,
+    "qps": 1,
     "distribution": "uniform",
-    "prompt_lens_mean": 55,
+    "prompt_lens_mean": 2048,
     "prompt_lens_range": -1,
-    "generation_lens_mean": 7,
+    "generation_lens_mean": 14,
     "generation_lens_range": -1,
     "generation_lens_distribution": "uniform",
     "first_token_latency": {
